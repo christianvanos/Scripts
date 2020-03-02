@@ -43,7 +43,7 @@ if [[ $EXIT == true ]]; then exit 1; fi
 ######### Functions  ########
 
 pw() {
-        sudo printf "DATABASE\npostfixadmin => $DB_postfixadmin\n\n" > ./pw-mail
+        sudo printf "DATABASE\npostfixadmin => $DB_postfixadmin\n\n" >> ./pw-mail
         sudo printf "POSTFIXADMIN\nadmin@$DOMAIN => $ADMIN_postfixadmin\n\n" >> ./pw-mail
         sudo printf "WEBMAIL\nadmin@$DOMAIN => $ADMIN_webmail\n\n" >> ./pw-mail
         sudo printf "WEBMAIL ADMIN\nadmin => $ADMIN_rainloop\n\n" >> ./pw-mail
