@@ -263,11 +263,10 @@ dovecot() {
 }
 
 rainloop() {
-	sudo mkdir -p ~/$WEBMAIL_subdomain.$DOMAIN;
-	cd ~/$WEBMAIL_subdomain.$DOMAIN;
-	sudo curl -sL https://repository.rainloop.net/installer.php | php;
-	cd ~/;
-	sudo mv ./$WEBMAIL_subdomain.$DOMAIN /var/www/;
+	sudo mkdir -p /var/www/$WEBMAIL_subdomain.$DOMAIN;
+	sudo mv ./webmail.example.com/* /var/www/$WEBMAIL_subdomain.$DOMAIN/;
+	sudo mv ./webmail.example.com/.* /var/www/$WEBMAIL_subdomain.$DOMAIN/;
+	sudo rm -r ./webmail.example.com/;
 
 	sudo php ./rainloop.php;
 	sudo rm ./rainloop.php;
