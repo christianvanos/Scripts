@@ -31,19 +31,24 @@ if [[ $EXIT == true ]]; then exit 1; fi
 
 ######### Functions  ########
 
+install() {
+	sudo apt-get install sshpass -y;
+}
+
 pw() {
 	sudo printf "SFTP\n$USERNAME => $PASSWORD" >> ~/pw-sftp;
 	sudo echo "Password: $PASSWORD";
 }
 
 addnewuser() {
-	sudo adduser $USERNAME;
+	sudo adduser --disabled-password --gecos "" $USERNAME;
+	sudo printf "$PASSWORD\n$PASSWORD\n" | sudo passwd $USERNAME;
 	sudo mkdir -p $DIRECTORY/$USERNAME;
 	
 	sudo chown root:root $DIRECTORY;
 	sudo chmod 755 $DIRECTORY;
 	
-	sudo chown $USERNAME:$USERNAME $DIRECTORY/$USERNAME;
+	sudo chown -R $USERNAME:$USERNAME $DIRECTORY/$USERNAME;
 	sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak;
 	printf "Match User $USERNAME\nForceCommand internal-sftp\nPasswordAuthentication yes\nChrootDirectory $DIRECTORY\nPermitTunnel no\nAllowAgentForwarding no\nAllowTcpForwarding no\nX11Forwarding no\n" >> /etc/ssh/sshd_config;
 
@@ -51,13 +56,19 @@ addnewuser() {
 
 	sudo echo "====================================";
 	sudo echo "TEST SSH... we should not get access";
-	sudo ssh $USERNAME@localhost;
+	sudo sshpass -p $PASSWORD ssh $USERNAME@localhost;
 
 	sudo echo "====================================";
 	sudo echo "TEST SFTP... we should get access";
-	sudo sftp $USERNAME@localhost;
+	sudo printf "ls\nquit\n" | sudo sshpass -p $PASSWORD sftp $USERNAME@localhost;
+}
+
+deinstall() {
+	sudo apt-get remove sshpass -y;
 }
 
 ######### Script ########
+install;
 pw;
 addnewuser;
+deinstall;

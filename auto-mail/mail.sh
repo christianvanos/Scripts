@@ -17,14 +17,14 @@ POSTFIXADMIN_subdomain='postfixadmin';
 DB_postfixadmin="abcde"; DB_postfixadmin+=$(date +%s | sha224sum | base64 | head -c 15); DB_postfixadmin+="012"
 ADMIN_postfixadmin="fghij"; ADMIN_postfixadmin+=$(date +%s | sha256sum | base64 | head -c 15); ADMIN_postfixadmin+="345";
 ADMIN_webmail="klmno"; ADMIN_webmail+=$(date +%s | sha384sum | base64 | head -c 15); ADMIN_webmail+="678";
-ADMIN_rainloop="pqrst"; ADMIN_rainloop+=$(date +%s | sha384sum | base64 | head -c 15); ADMIN_rainloop+="901";
+ADMIN_rainloop="pqrst"; ADMIN_rainloop+=$(date +%s | sha512sum | base64 | head -c 15); ADMIN_rainloop+="901";
 
 ######## Arguments ########
 
 while getopts ":d:k:i:v:m:w:p:" opt; do
 	case $opt in 
 		d) DOMAIN="$OPTARG";;			# HOST DOMAIN		REQUIRED!
-		i) IP_address="$OPTARG";;		# TARGET PUBLIC IP	REQUIRED!
+		i) IP_address="$OPTARG";;		# TARGET PUBLIC IP
 		v) PHP_version="$OPTARG";;		# PHP VERSION
 		m) MX_subdomain="$OPTARG";;		# MX SUBDOMAIN
 		w) WEBMAIL_subdomain="$OPTARG";;	# WEBMAIL SUBDOMAIN
@@ -37,16 +37,15 @@ done
 
 
 if [[ $DOMAIN == '' ]]; then echo "-d flag is missing (domain)"; EXIT=true; fi
-if [[ $IP_address == '' ]]; then echo "-i flag is missing (target ip addr)"; EXIT=true; fi
 if [[ $EXIT == true ]]; then exit 1; fi
 
 ######### Functions  ########
 
 pw() {
-	sudo printf "DATABASE\npostfixadmin => $DB_postfixadmin\n\n" > ./pw-mail
-	sudo printf "POSTFIXADMIN\nadmin@$DOMAIN => $ADMIN_postfixadmin\n\n" >> ./pw-mail
-	sudo printf "WEBMAIL\nadmin@$DOMAIN => $ADMIN_webmail\n\n" >> ./pw-mail
-	sudo printf "WEBMAIL ADMIN\nadmin => $ADMIN_rainloop\n\n" >> ./pw-mail
+	sudo printf "DATABASE\npostfixadmin => $DB_postfixadmin\n\n" > ./pw
+	sudo printf "POSTFIXADMIN\nadmin@$DOMAIN => $ADMIN_postfixadmin\n\n" >> ./pw
+	sudo printf "WEBMAIL\nadmin@$DOMAIN => $ADMIN_webmail\n\n" >> ./pw
+	sudo printf "WEBMAIL ADMIN\nadmin => $ADMIN_rainloop\n\n" >> ./pw
 }
 
 pre-records-dns() {
@@ -85,8 +84,10 @@ apt-get-install() {
 	sudo apt-get install -y certbot python3-certbot-apache;
 	sudo debconf-set-selections <<< "postfix postfix/mailname string $MX_subdomain.$DOMAIN"
 	sudo debconf-set-selections <<< "postfix postfix/main_mailer_type string 'Internet Site'"
-	sudo apt-get install -y postfix postfix-mysql dovecot-imapd \
-				dovecot-lmtpd dovecot-pop3d dovecot-mysql;
+	sudo apt-get install -y postfix postfix-mysql \
+				postfix-policyd-spf-python \
+				dovecot-imapd dovecot-lmtpd \
+				dovecot-pop3d dovecot-mysql;
 	
 	sudo a2enmod php${PHP_version};
 	sudo systemctl restart apache2;
@@ -213,9 +214,10 @@ postfix() {
 	sudo postconf -e 'smtpd_sasl_security_options = noanonymous';
 	sudo postconf -e 'broken_sasl_auth_clients = yes';
 	sudo postconf -e 'smtpd_sasl_auth_enable = yes';
-	sudo postconf -e 'smtpd_recipient_restrictions = permit_sasl_authenticated,permit_mynetworks,reject_unauth_destination';
+	sudo postconf -e 'policyd-spf_time_limit = 3600';
+	sudo postconf -e 'smtpd_recipient_restrictions = permit_sasl_authenticated,permit_mynetworks,reject_unauth_destination, check_policy_service unix:private/policyd-spf';
 	sudo postconf -e "myhostname = $MX_subdomain.$DOMAIN";
-	myhostname = '$myhostname';
+	myhostname='$myhostname';
 	sudo postconf -e "mydestination = $myhostname, $MX_subdomain.$DOMAIN, localhost.$DOMAIN, localhost";
 	echo "$DOMAIN" > /etc/mailname;
 
@@ -283,7 +285,7 @@ rainloop() {
 }
 
 todo() {
-	sudo cat ./pw-mail;
+	sudo cat ./pw;
 	sudo echo "Remember to test the webmail (send and recieve)";
 	sudo rm ./mail.tar.gz;
 	sudo rm ./mail.sh;
