@@ -7,6 +7,7 @@
 ######## Variables ########
 
 EXIT=false;
+DNS_check=true;
 PHP_version='7.4';
 MX_subdomain='mail';
 WEBMAIL_subdomain='webmail';
@@ -21,14 +22,26 @@ ADMIN_rainloop="pqrst"; ADMIN_rainloop+=$(date +%s | sha512sum | base64 | head -
 
 ######## Arguments ########
 
-while getopts ":d:k:i:v:m:w:p:" opt; do
+if [[ $1 == "--help" ]]; then
+	echo "-d DOMAIN    			REQUIRED
+-i PUBLIC IP			REQUIRED
+-v PHP-VERSION 			DEFAULT ${PHP_version} 
+-m MX SUBDOMAIN 		DEFAULT ${MX_subdomain}
+-w WEBMAIL SUBDOMAIN		DEFAULT ${WEBMAIL_subdomain}
+-p POSTFIXADMIN SUBDOMAIN	DEFAULT ${POSTFIXADMIN_subdomain}
+-s DNS-CHECK SKIP		DEFAULT ${DNS_check}";
+	exit 0;
+fi
+
+while getopts ":d:k:i:v:m:w:p:s:" opt; do
 	case $opt in 
 		d) DOMAIN="$OPTARG";;			# HOST DOMAIN		REQUIRED!
-		i) IP_address="$OPTARG";;		# TARGET PUBLIC IP
+		i) IP_address="$OPTARG";;		# TARGET PUBLIC IP	REQUIRED!
 		v) PHP_version="$OPTARG";;		# PHP VERSION
 		m) MX_subdomain="$OPTARG";;		# MX SUBDOMAIN
 		w) WEBMAIL_subdomain="$OPTARG";;	# WEBMAIL SUBDOMAIN
 		p) POSTFIXADMIN_subdomain="$OPTARG";;	# POSTFIXADMIN SUBDOMAIN
+		s) DNS_check="$OPTARG";;		# DNS-CHECK SKIP 
 		\?) echo "Invalid option -$OPTARG" >&2; exit 1;;
 		:) echo "Missing option argument for -$OPTARG">&2; exit 1;; 
 		*) echo "Unimplemented option: -$OPTARG" >&2; exit 1;;
@@ -37,6 +50,7 @@ done
 
 
 if [[ $DOMAIN == '' ]]; then echo "-d flag is missing (domain)"; EXIT=true; fi
+if [[ $IP_address == '' ]]; then echo "-i flag is missing (ip address)"; EXIT=true; fi
 if [[ $EXIT == true ]]; then exit 1; fi
 
 ######### Functions  ########
@@ -56,6 +70,46 @@ pre-records-dns() {
 	echo "|  A   | $IP_address   			| $POSTFIXADMIN_subdomain.$DOMAIN";
 	echo "| MX   | 10 $MX_subdomain.$DOMAIN		| $DOMAIN";
 	echo "| TXT  | v=spf1 a mx ip4:$IP_address -all	| $DOMAIN";
+}
+
+check-dns() {
+	# MX CHECK
+	if `! sudo dig +short mx $DOMAIN | grep -q "$MX_subdomain.$DOMAIN\|$IP_address"`; then 
+		echo "It looks like the mx record wasn't set correctly..."; 
+		EXIT=true;
+	else 
+		echo "It looks like the mx record is set correctly!"; 
+	fi
+	
+	# MX IP CHECK
+	if `! sudo dig +short a $MX_subdomain.$DOMAIN | grep -q "$IP_address"`; then 
+		echo "It looks like the ip address of the mx subdomain wasn't set correctly..."; 
+		EXIT=true;
+	else 
+		echo "It looks like the ip address of the mx subdomain is set correctly!"; 
+	fi
+	
+	# WEBMAIL IP CHECK
+	if `! sudo dig +short a $WEBMAIL_subdomain.$DOMAIN | grep -q "$IP_address"`; then 
+		echo "It looks like the ip address of the webmail subdomain wasn't set correctly..."; 
+		EXIT=true;
+	else 
+		echo "It looks like the ip address of the webmail subdomain is set correctly!"; 
+	fi
+
+	# POSTFIXADMIN IP CHECK	
+	if `! sudo dig +short a $POSTFIXADMIN_subdomain.$DOMAIN | grep -q "$IP_address"`; then 
+		echo "It looks like the ip address of the postfixadmin subdomain wasn't set correctly..."; 
+		EXIT=true;
+	else 
+		echo "It looks like the ip address of the postfixadmin subdomain is set correctly!"; 
+	fi
+	
+	if [[ $EXIT == true ]]; then 
+		if [[ $DNS_check == true ]]; then 
+			exit 1; 
+		fi 
+	fi
 }
 
 update-upgrade() {
@@ -220,7 +274,6 @@ postfix() {
 	myhostname='$myhostname';
 	sudo postconf -e "mydestination = $myhostname, $MX_subdomain.$DOMAIN, localhost.$DOMAIN, localhost";
 	echo "$DOMAIN" > /etc/mailname;
-
 	
 	sudo cp /etc/postfix/master.cf /etc/postfix/master.cf.orig;
 	sudo mv master.cf /etc/postfix/master.cf;
@@ -261,7 +314,7 @@ dovecot() {
 	sudo mv quota-warning.sh /usr/local/bin/quota-warning.sh;
 	sudo chmod +x /usr/local/bin/quota-warning.sh;
 
-	systemctl restart dovecot;
+	sudo systemctl restart dovecot;
 }
 
 rainloop() {
@@ -293,6 +346,7 @@ todo() {
 
 ######### Script ########
 pre-records-dns;
+check-dns;
 pw;
 update-upgrade;
 apt-get-install;
