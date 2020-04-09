@@ -148,6 +148,7 @@ apt-get-install() {
 
 	sudo tar xzf mail.tar.gz;	
 	sudo sed -i "s/your_secret_password/$DB_postfixadmin/g" config.local.php;
+	sudo sed -i "s/your_secret_password/$DB_postfixadmin/g" plugin-postfixadmin-change-password.ini
 	sudo sed -i "s/example.com/$DOMAIN/g" config.local.php;
 	sudo sed -i "s/example.com/$DOMAIN/g" mail.example.com.conf;	
 	sudo sed -i "s/example.com/$DOMAIN/g" webmail.example.com.conf;
@@ -327,7 +328,15 @@ rainloop() {
 	sudo rm ./rainloop.php;
 
 	sudo mkdir -p /var/www/$WEBMAIL_subdomain.$DOMAIN/data/_data_/_default_/domains;
+	sudo mkdir -p /var/www/$WEBMAIL_subdomain.$DOMAIN/data/_data_/_default_/configs;
+	sudo mkdir -p /var/www/$WEBMAIL_subdomain.$DOMAIN/data/_data_/_default_/plugins;
+
 	sudo mv ./example.com.ini /var/www/$WEBMAIL_subdomain.$DOMAIN/data/_data_/_default_/domains/$DOMAIN.ini;
+	sudo mv ./plugin-postfixadmin-change-password.ini /var/www/$WEBMAIL_subdomain.$DOMAIN/data/_data_/_default_/configs/;
+	sudo mv ./postfixadmin-change-password/ /var/www/$WEBMAIL_subdomain.$DOMAIN/data/_data_/_default_/plugins/
+
+	sudo sed -i '142s/.*/enable = On/' /var/www/$WEBMAIL_subdomain.$DOMAIN/data/_data_/_default_/configs/application.ini
+	sudo sed -i '145s/.*/enabled_list = "postfixadmin-change-password"/' /var/www/$WEBMAIL_subdomain.$DOMAIN/data/_data_/_default_/configs/application.ini
 
 	sudo chown -R www-data: /var/www/$MX_subdomain.$DOMAIN;
 	sudo chown -R www-data: /var/www/$WEBMAIL_subdomain.$DOMAIN;
